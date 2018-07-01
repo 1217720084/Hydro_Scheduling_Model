@@ -1,0 +1,28 @@
+[PROJECT]
+
+[RP:UNTITLED_1]
+1=
+
+[RP:VSPDSOLVE]
+1=
+
+[RP:MODEL]
+1=
+
+[RP:VSPDMODEL - COPY]
+1=
+
+[MRUFILES]
+1=C:\vSPD\vSPD_v3.0.3\Programs\vSPDmodel - Copy.gms
+2=A:\Tuong Nguyen\vSPD\vSPD_v3.0.4\Programs\vSPDsolve.gms
+3=C:\Security Margin\Development\Model.lst
+4=C:\Security Margin\Development\Untitled_1.gms
+
+[OPENWINDOW_1]
+FILE0=C:\Security Margin\Development\Model.gms
+FILE1=C:\Security Margin\Development\Model.gms
+MAXIM=1
+TOP=50
+LEFT=50
+HEIGHT=400
+WIDTH=400
