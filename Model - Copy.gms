@@ -17,8 +17,8 @@ SETS
 
 ;
 
-Alias (n, fn, tn)    ,  (j, j1, j2, fj, tj)  ,  (g, g1, g2)
-      (vs, vs1, vs2) ,  (t, t1, t2, t3)      ,  (s,s1,s2)
+Alias (n, fn, tn),   (j, j1, j2, fj, tj),   (g, g1, g2)
+      (vs, vs1, vs2), (t, t1, t2, t3)
 ;
 
 SETS
@@ -41,6 +41,7 @@ SETS
    hydro(g)                                                                     'hydro generation station'
 
    validcuts(t,i)                                                               'Flag the valid cuts to be applied to calculate expected future cost'
+
 ;
 
 
@@ -68,10 +69,8 @@ PARAMETERS
    voll_mw(t,b,n,ls)                                                            'Maximum shortage penalty quantity for loss load tranche ls (MW)'
    voll_nzd(t,b,n,ls)                                                           'Shortage penalty cost applied for loss load tranche ls ($/MWh)'
 
-   minflow(fj,tj)                                                               'Min flow requirement on flow arc between two hydro junctions'
-   maxflow(fj,tj)                                                               'Max flow requirement on flow arc between two hydro junctions'
-
-   penaltycost                                                                  'Penalty cost applied to min flow, max flow, spill way and fixed generation violation'
+   minflow(t,b,fj,tj)                                                           'Min flow requirement on flow arc between two hydro junctions'
+   maxflow(t,b,fj,tj)                                                           'Max flow requirement on flow arc between two hydro junctions'
 
    storagecapacity(j)                                                           'Storage capacity (m3) at each reservoir'
    initialstorage(j)                                                            'Initial storage (m3) at each reservoir'
@@ -85,12 +84,10 @@ PARAMETERS
    waternzdpermwh(t,vs)                                                         'Value of end storage segments in $/MWh'
 
    slopes(t,j,i)                                                                'Slopes of cut i'
-   intercepts(t,i)                                                               'Intercept of cut i'
+   intercept(t,i)                                                               'Intercept of cut i'
 
 ;
 
-SCALARS
-   lastinterval                                                                 'Flag 1 if the currently solved interval is the last interval - 0 otherwise' /0/
 
 VARIABLES
    COST                                                                         'Expected system cost'
@@ -103,6 +100,7 @@ POSITIVE VARIABLES
    SHORTAGECOST(s,t,b)                                                          'Shortage cost by demand block '
    VIOLATIONCOST(s,t,b)                                                         'Constraint violation cost by demand block'
    FUTURECOST(s,t)                                                              'Expected minimum furture cost and the and of time(t)'
+   ENDSTORAGEVALUE(s,t)                                                         'Value of end total storage $'
 
    TRANSMISSIONFLOW(s,t,b,fn,tn)                                                'Energy flow on transmision branch - MW'
    SHORTAGE(s,t,b,n,ls)                                                         'Loss load allocated to each loss load tranche - MW'
@@ -113,9 +111,11 @@ POSITIVE VARIABLES
    FLOWONHYDROARC(s,t,b,fj,tj)                                                  'Hydro flow release on hydro arc between two hydro junctions - cumec(s)'
 
    ENDSTORAGE(s,t,j)                                                            'Storage level (m3) at the end of time interval (t) at reservoir (j)'
+   ENDSTORAGEGWH(s,t)                                                           'Total storage (GWh) at the end of time interval (t)'
    ENDSTORAGESEGMENTGWH(s,t,vs)                                                 'Segment storage (GWh) at the end of time interval (t)'
 
 * Slack variables
+   SURPLUSFIXEDGENERATION(s,t,b,g)                                              'Violation of fixed output - unsued MW'
    SPILLWAYVIOLATION(s,t,b,g)                                                   'Violation of spillway limit - cumec(s) '
    MAXARCFLOWVIOLATION(s,t,b,fj,tj)                                             'Violation of max flow on hydro arc - cumec(s) '
    MINARCFLOWVIOLATION(s,t,b,fj,tj)                                             'Violation of min flow on hydro arc - cumec(s) '
@@ -124,12 +124,17 @@ POSITIVE VARIABLES
 
 EQUATIONS
    ObjectiveFunction                                                            'Objective function'
-   ExpectedFutureCostForward(s,t,i)                                             'Expected minimum future cost calculated based on saved cuts'
-   ExpectedFutureCostBackward(s,t,i)                                            'Expected minimum future cost calculated based on added cut'
+
+   ThermalGenerationCostCalculation(s,t,b)                                      'Thermal generation cost calculation'
+   ShortageCostCalculation(s,t,b)                                               'Shortage cost calculation'
+   ViolationCostCalculation(s,t,b)                                              'Violation cost calculation'
+   ExpectedFutureCost(s,t,i)                                                    'Expected minimum future cost calculated based on saved cuts'
+   EndStorageValueCalculation(s,t)                                              'Calculate end storage value $'
 
    EnergyDemandSupplyBalance(s,t,b,n)                                           'Total Energy Supply to a node (region) equal to Demand'
 
    GenerationCapacityConstraint(s,t,b,g)                                        'Generation output is limited by capacity'
+   FixedGenerationConstraint(s,t,b,g)                                           'Generation output is limited by capacity'
    HydroGenerationCumecsToMWConversion(s,t,b,g)                                 'Conversion hydro flow(cumecs) through turbines to generation output (MW)'
    HydroGenerationSpillMaxConstraint(s,t,b,g)                                   'Maximum spilled flow (cumecs)'
 
@@ -149,38 +154,56 @@ EQUATIONS
 ObjectiveFunction..
   COST
 =e=
-  Sum[ (seq,ti,b,g) $ thermal(g), GENERATION(seq,ti,b,g)                        !! Thermal generation cost
-                                * srmc(ti,g) * blockhour(ti,b) ]
-+ Sum[ (seq,ti,b,n,ls), SHORTAGE(seq,ti,b,n,ls)                                 !! Shortage cost
-                      * voll_nzd(ti,b,n,ls) * blockhour(ti,b) ]
-+ Sum[ (seq,ti), FUTURECOST(seq,ti) ] $ (lastinterval = 0)                      !! Expected furure cost based on saved cuts
+  Sum[ (seq,ti,b) , GENERATIONCOST(seq,ti,b) ]
++ Sum[ (seq,ti,b) , SHORTAGECOST(seq,ti,b)   ]
++ Sum[ (seq,ti,b) , VIOLATIONCOST(seq,ti,b)  ]
++ Sum[ (seq,ti)   , FUTURECOST(seq,ti)       ]
+- Sum[ (seq,ti)   , ENDSTORAGEVALUE(seq,ti)  ]
 
-- Sum[ (seq,ti,vs) $ waternzdpermwh(ti,vs), ENDSTORAGESEGMENTGWH(seq,ti,vs)     !! Storage value at the end of simulation time zone
-                                          * waternzdpermwh(ti,vs)
-     ] $ (lastinterval = 1)
-+ Sum[ (seq,ti,b,g) $ hydro(g), SPILLWAYVIOLATION(seq,ti,b,g)                   !! Spillway violation cost
-                              * blockhour(ti,b) * penaltycost ]
-+ Sum[ (seq,ti,b,fj,tj) $ hydroarc(fj,tj), MAXARCFLOWVIOLATION(seq,ti,b,fj,tj)  !! Max arc flow violation cost
-                                         * blockhour(ti,b) * penaltycost ]
-+ Sum[ (seq,ti,b,fj,tj) $ hydroarc(fj,tj), MINARCFLOWVIOLATION(seq,ti,b,fj,tj)  !! Min arc flow violation cost
-                                         * blockhour(ti,b) * penaltycost ]
++ Sum[ (seq,ti,b,g), FLOWTHROUGHSPILLWAY(seq,ti,b,g) * 1e-6 ]
   ;
 
+* Cost/benefit calculation
+ThermalGenerationCostCalculation(seq,ti,b)..
+  GENERATIONCOST(seq,ti,b)
+=e=
+  Sum[ thermal(g), GENERATION(seq,ti,b,g) * srmc(ti,g) * blockhour(ti,b)]
+  ;
 
-* Future cost is estimated baed on saved cuts
-ExpectedFutureCostForward(seq,ti,i)
-  $ { validcuts(ti,i) and (lastinterval = 0) }..
+ShortageCostCalculation(seq,ti,b) ..
+  SHORTAGECOST(seq,ti,b)
+=e=
+  Sum[ (n,ls), SHORTAGE(seq,ti,b,n,ls) * voll_nzd(ti,b,n,ls) * blockhour(ti,b)]
+  ;
+
+ExpectedFutureCost(seq,ti,i) $ validcuts(ti,i)..
   FUTURECOST(seq,ti)
 =g=
-  Sum[ reservoir(j), slopes(ti,j,i) * ENDSTORAGE(seq,ti,j) ] + intercepts(ti,i)
+  Sum[ reservoir(j), slopes(ti,j,i) * ENDSTORAGE(seq,ti,j) ] + intercept(ti,i)
   ;
+
+ViolationCostCalculation(seq,ti,b) ..
+  VIOLATIONCOST(seq,ti,b)
+=e=
+  Sum[ g       $ fixed(g)        , SURPLUSFIXEDGENERATION(seq,ti,b,g)   * 500 ]
++ Sum[ g       $ hydro(g)        , SPILLWAYVIOLATION(seq,ti,b,g)        * 500 ]
++ Sum[ (fj,tj) $ hydroarc(fj,tj) , MAXARCFLOWVIOLATION(seq,ti,b,fj,tj)  * 500 ]
++ Sum[ (fj,tj) $ hydroarc(fj,tj) , MINARCFLOWVIOLATION(seq,ti,b,fj,tj)  * 500 ]
+  ;
+
+EndStorageValueCalculation(seq,ti) $ {Sum[ vs, waternzdpermwh(ti,vs)] > 0}..
+  ENDSTORAGEVALUE(seq,ti)
+=e=
+  Sum[ vs $ waternzdpermwh(ti,vs)
+     , ENDSTORAGESEGMENTGWH(seq,ti,vs) * waternzdpermwh(ti,vs) ] ;
+
 
 * Supply Demand Balance
 EnergyDemandSupplyBalance(seq,ti,b,n)..
-  Sum[ g  $  plantnode(g,n) , GENERATION(seq,ti,b,g) ]
-+ Sum[ fn $ txcapacity(fn,n), TRANSMISSIONFLOW(seq,ti,b,fn,n)   ]
-- Sum[ tn $ txcapacity(n,tn), TRANSMISSIONFLOW(seq,ti,b,n,tn)   ]
-+ Sum[ ls                   , SHORTAGE(seq,ti,b,n,ls)           ]
+  Sum[ g    $ plantnode(g,n)  , GENERATION(seq,ti,b,g)            ]
++ Sum[ fn   $ txcapacity(fn,n), TRANSMISSIONFLOW(seq,ti,b,fn,n)   ]
+- Sum[ tn   $ txcapacity(n,tn), TRANSMISSIONFLOW(seq,ti,b,n,tn)   ]
++ Sum[ ls                     , SHORTAGE(seq,ti,b,n,ls)           ]
 =e=
   demand(ti,b,n)
   ;
@@ -189,6 +212,13 @@ EnergyDemandSupplyBalance(seq,ti,b,n)..
 * Generation Constraint
 GenerationCapacityConstraint(seq,ti,b,g) $ { thermal(g) or hydro(g) }..
   GENERATION(seq,ti,b,g) =l= plantcapacity(ti,b,g)
+  ;
+
+FixedGenerationConstraint(seq,ti,b,g) $ fixed(g)..
+  GENERATION(seq,ti,b,g)
++ SURPLUSFIXEDGENERATION(seq,ti,b,g)
+=e=
+  fixedoutput(ti,b,g)
   ;
 
 HydroGenerationCumecsToMWConversion(seq,ti,b,g) $ hydro(g)..
@@ -206,17 +236,17 @@ HydroGenerationSpillMaxConstraint(seq,ti,b,g) $ hydro(g)..
 
 * Hydro arc/flow constraints
 MaxFlowOnArcConstraint(seq,ti,b,fj,tj)
-  $ {hydroarc(fj,tj) and maxflow(fj,tj)}..
+  $ {hydroarc(fj,tj) and maxflow(ti,b,fj,tj)}..
   FLOWONHYDROARC(seq,ti,b,fj,tj) - MAXARCFLOWVIOLATION(seq,ti,b,fj,tj)          !! Flow on a hysro arc may have maximum limit
 =l=
-  maxflow(fj,tj)
+  maxflow(ti,b,fj,tj)
  ;
 
 MinFlowOnArcConstraint(seq,ti,b,fj,tj)
-  $ {hydroarc(fj,tj) and minflow(fj,tj)}..
+  $ {hydroarc(fj,tj) and minflow(ti,b,fj,tj)}..
   FLOWONHYDROARC(seq,ti,b,fj,tj) + MINARCFLOWVIOLATION(seq,ti,b,fj,tj)          !! Flow on a hysro arc may have mimimum requirement
 =g=
-  minflow(fj,tj)
+  minflow(ti,b,fj,tj)
   ;
 
 FlowInEqualFlowOutJunctionConstraint(seq,ti,j)
@@ -257,22 +287,31 @@ FlowInEqualFlowOutReservoirConstraint(seq,ti,j) $ reservoir(j)..
   ;
 
 * Storage constraints
-EndStorageTotalGWhCalculation(seq,ti) $ (lastinterval = 1)..
-  Sum[ vs, ENDSTORAGESEGMENTGWH(seq,ti,vs) ]
+EndStorageTotalGWhCalculation(seq,ti) $ {Sum[ vs, waternzdpermwh(ti,vs)] > 0}..
+  ENDSTORAGEGWH(seq,ti)
 =e=
   Sum[ reservoir(j), ENDSTORAGE(seq,ti,j) * reservoirfactor(j) / 3.6e6 ];
 
+EndStorageSegmentGWhCalculation(seq,ti) $ {Sum[ vs, waternzdpermwh(ti,vs)] > 0}..
+  ENDSTORAGEGWH(seq,ti)
+=e=
+  Sum[ vs, ENDSTORAGESEGMENTGWH(seq,ti,vs)];
 
 
 Model HydroThermalModel /
 * Objective function
    ObjectiveFunction
 * Cost Calculation
-   ExpectedFutureCostForward
+   ThermalGenerationCostCalculation
+   ShortageCostCalculation
+   ExpectedFutureCost
+   ViolationCostCalculation
+   EndStorageValueCalculation
 * Supply Demand
    EnergyDemandSupplyBalance
 * Generation Constraint
    GenerationCapacityConstraint
+   FixedGenerationConstraint
    HydroGenerationCumecsToMWConversion
    HydroGenerationSpillMaxConstraint
 * Hydro arc/flow constraints
@@ -282,4 +321,5 @@ Model HydroThermalModel /
    FlowInEqualFlowOutReservoirConstraint
 * Storage constraint
    EndStorageTotalGWhCalculation
+   EndStorageSegmentGWhCalculation
    / ;
