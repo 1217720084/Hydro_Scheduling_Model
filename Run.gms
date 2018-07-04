@@ -20,6 +20,9 @@ $offecho
 Files
 temp       "A temporary, recyclable batch file"
 
+*$call gdxxrw Input.xlsx o=sm.gdx index=myindex!a1
+*$stop
+
 $call gams Model.gms s=Model
 
 
