@@ -149,7 +149,7 @@ ObjectiveFunction..
 + Sum[ (seq,ti), FUTURECOST(seq) ] $ (lastinterval = 0)                          !! Expected furure cost based on saved cuts
 
 - Sum[ (seq, vs) $ waternzdpermwh(vs), ENDSTORAGESEGMENTGWH(seq,vs)              !! Storage value at the end of simulation time zone
-                                       * waternzdpermwh(vs) * 1e3
+                                       * waternzdpermwh(vs)
      ] $ (lastinterval = 1)
 + Sum[ (seq,ti,b,fj,tj) $ hydroarc(fj,tj), MAXARCFLOWVIOLATION(seq,b,fj,tj)      !! Max arc flow violation cost
                                          * blockhour(ti,b) * penaltycost ]

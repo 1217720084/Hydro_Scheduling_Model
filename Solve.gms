@@ -14,7 +14,8 @@ option lp = %Solver% ;
 option mip = %Solver% ;
 
 * Set the solution print status in the lst file
-option solprint = off;
+*option solprint = Off;
+option solprint = Silent;
 
 * Set the column (variable) and row (equation) listing in the lst file
 option limcol = 0 ;
@@ -33,7 +34,7 @@ runlog.ap = 1 ;
 
 *Primay sets
 SETS
-   i        'Pre-set number of iterations' /i1 * i1000/
+   i        'Pre-set number of iterations' /i1 * i10/
 
    revt(t,t)                                                                    'reserve set of set t'
    reservoirplant(j,g)                                                          'list of hydro plants behind a reservoir or lake that can store water'
@@ -113,6 +114,8 @@ revt(t,t+[card(t)-2*ord(t)+1]) = yes;
 sea(j) = yes $ sameas(j,'SEA');
 reservoir(j) = yes $ reservoirparameters(j,'capacity') ;
 hydroarc(fj,tj) = yes $ hydroarcparameters(fj,tj,'maxflow') ;
+
+
 
 plantnode(g,n) =
    yes $ {sum[ (fj,tj), hydrostationparameters(g,n,fj,tj,'powerfactor') ]
@@ -241,6 +244,17 @@ loop [s $ (ord(s) <= 10),
 *     Slack variables
       option clear = MAXARCFLOWVIOLATION ;
       option clear = MINARCFLOWVIOLATION ;
+*     Equations
+      option clear = ObjectiveFunction ;
+      option clear = ExpectedFutureCost ;
+      option clear = EnergyDemandSupplyBalance ;
+      option clear = HydroGenerationCumecsToMWConversion ;
+      option clear = FlowInEqualFlowOutJunctionConstraint ;
+      option clear = FlowInEqualFlowOutReservoirConstraint ;
+      option clear = MaxFlowOnArcConstraint;
+      option clear = MinFlowOnArcConstraint ;
+      option clear = EndStorageTotalGWhCalculation ;
+      option clear = EndStorageSegmentGWhCalculation ;
 *     End reset
 
       ti(t)  = yes;
@@ -263,6 +277,8 @@ loop [s $ (ord(s) <= 10),
       ENDSTORAGESEGMENTGWH.fx(seq,vs) $ (lastinterval = 0) = 0;
 
       option bratio = 1 ;
+      SDDP.dictFile = 0 ;
+      SDDP.holdFixed = 1 ;
       SDDP.reslim = LPTimeLimit ;
       SDDP.iterlim = LPIterationLimit ;
       solve SDDP using lp minimizing COST ;
@@ -327,6 +343,17 @@ $offtext
 *     Slack variables
       option clear = MAXARCFLOWVIOLATION ;
       option clear = MINARCFLOWVIOLATION ;
+*     Equations
+      option clear = ObjectiveFunction ;
+      option clear = ExpectedFutureCost ;
+      option clear = EnergyDemandSupplyBalance ;
+      option clear = HydroGenerationCumecsToMWConversion ;
+      option clear = FlowInEqualFlowOutJunctionConstraint ;
+      option clear = FlowInEqualFlowOutReservoirConstraint ;
+      option clear = MaxFlowOnArcConstraint;
+      option clear = MinFlowOnArcConstraint ;
+      option clear = EndStorageTotalGWhCalculation ;
+      option clear = EndStorageSegmentGWhCalculation ;
 *     End reset
 
       ti(t)  = yes;
@@ -349,6 +376,8 @@ $offtext
       ENDSTORAGESEGMENTGWH.fx(seq,vs) $ (lastinterval = 0) = 0;
 
       option bratio = 1 ;
+      SDDP.dictFile = 0 ;
+      SDDP.holdFixed = 1 ;
       SDDP.reslim = LPTimeLimit ;
       SDDP.iterlim = LPIterationLimit ;
       solve SDDP using lp minimizing COST ;
@@ -397,43 +426,9 @@ $offtext
 
 ] ;
 
-execute_unload 'savedoutput.gdx'
+execute_unload 'savedoutput3.gdx'
 
 ;
 
 putclose runlog / 'SDDP run time: ' timeElapsed /;
 
-
-
-
-$ontext
-      o_systemcost(seq,ti)       = COST.l ;
-
-      o_generation(seq,ti,b,g)   = GENERATION.l(seq,ti,b,g) ;
-      o_generationcost(seq,ti,b)
-         = Sum[ thermal(g), GENERATION(seq,ti,b,g)
-                          * srmc(ti,g) * blockhour(ti,b) ];
-
-      o_shortage(seq,ti,b,n)     = Sum[ ls, SHORTAGE.l(seq,ti,b,n,ls) ] ;
-      o_shortagecost(seq,ti,b)   = Sum[ (n,ls), SHORTAGE.l(seq,ti,b,n,ls)
-                                              * voll_nzd(n,ls)
-                                              * blockhour(ti,b)] ;
-
-      o_maxarcflowviolation(seq,ti,b,fj,tj)
-         = MAXARCFLOWVIOLATION.l(seq,ti,b,fj,tj) ;
-      o_minarcflowviolation(seq,ti,b)
-         = Sum[ (fj,tj) $ hydroarc(fj,tj), MAXARCFLOWVIOLATION(seq,ti,b,fj,tj)
-                                         * blockhour(ti,b) * penaltycost ] ;
-
-      o_minarcflowviolation(seq,ti,b,fj,tj)
-         = MINARCFLOWVIOLATION.l(seq,ti,b,fj,tj) ;
-      o_minarcflowviolation(seq,ti,b)
-         = Sum[ (fj,tj) $ hydroarc(fj,tj), MINARCFLOWVIOLATION(seq,ti,b,fj,tj)
-                                         * blockhour(ti,b) * penaltycost ] ;
-
-      o_futurecost(seq,ti) = FURTURECOST.l(sq,ti) ;
-
-      o_endstoragevalue(seq,ti)
-         = Sum[ (seq,vs) $ waternzdpermwh(vs)
-              , ENDSTORAGESEGMENTGWH.l(seq,vs) * waternzdpermwh(vs) ] ;
-$offtext
