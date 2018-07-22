@@ -121,18 +121,13 @@ POSITIVE VARIABLES
 EQUATIONS
    ObjectiveFunction                                                            'Objective function'
    ExpectedFutureCost(s,t,i)                                                    'Expected minimum future cost calculated based on saved cuts'
-
    EnergyDemandSupplyBalance(s,t,b,n)                                           'Total Energy Supply to a node (region) equal to Demand'
-
    HydroGenerationCumecsToMWConversion(s,t,b,g)                                 'Conversion hydro flow(cumecs) through turbines to generation output (MW)'
-
-   FlowInEqualFlowOutConstraint(s,t,j)                                          'Total Hydro flow in should be equal to hydro flow out off a hydro junction'
    FlowInEqualFlowOutJunctionConstraint(s,t,j)                                  'Total Hydro flow in should be equal to hydro flow out off a hydro junction'
+*   FlowInEqualFlowOutJunctionConstraint(s,t,b,j)                                'Total Hydro flow in should be equal to hydro flow out off a hydro junction'
    FlowInEqualFlowOutReservoirConstraint(s,t,j)                                 'Total Hydro flow in should be equal to hydro flow out off a hydro reservoir'
-
    MaxFlowOnArcConstraint(s,t,b,fj,tj)                                          'Maximum hydro arc flow constraint'
    MinFlowOnArcConstraint(s,t,b,fj,tj)                                          'Minimum hydro arc flow constraint'
-
    EndStorageTotalGWhCalculation(s,t)                                           'Calculate end storage total GWh'
    EndStorageSegmentGWhCalculation(s,t)                                         'Allocate end storage to segment'
 
@@ -195,6 +190,7 @@ MinFlowOnArcConstraint(seq,ti,b,fj,tj)
 =g=
   minflow(fj,tj)
   ;
+
 
 FlowInEqualFlowOutJunctionConstraint(seq,ti,j)
   $ {not (reservoir(j) or sea(j))}..

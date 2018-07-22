@@ -34,7 +34,7 @@ runlog.ap = 1 ;
 
 *Primay sets
 SETS
-   i        'Pre-set number of iterations' /i1 * i10/
+   i        'Pre-set number of iterations' /i1 * i100/
 
    revt(t,t)                                                                    'reserve set of set t'
    reservoirplant(j,g)                                                          'list of hydro plants behind a reservoir or lake that can store water'
@@ -54,6 +54,8 @@ PARAMETERS
    transmissionparameters(fn,tn,*)
    valueoflossload(n,ls,*)
    endwatervalue(vs,*)
+   sampledinflow(s,t,j)
+   historicalinflow(s,t,j)
 
 
 * Output
@@ -93,7 +95,7 @@ SCALARS
 
 $GDXIN "sm.gdx"
 $LOAD n, t, b, j, s, g, f, vs, ls
-$LOAD demand, blockhour, inflow
+$LOAD demand, blockhour, sampledinflow, historicalinflow
 $LOAD fuelcost, co2cost, emissionrate
 $LOAD reservoirparameters
 $LOAD hydroarcparameters
@@ -164,8 +166,8 @@ loop ( reservoir(j),
 heatrate(g) $ thermal(g)
    =  sum[ (n,f), thermalstationparameters(g,n,f,'heatrate') ] ;
 
-opercost(g) $ thermal(g)
-   =  sum[ (n,f), thermalstationparameters(g,n,f,'operationcost') ] ;
+*opercost(g) $ thermal(g)
+*   =  sum[ (n,f), thermalstationparameters(g,n,f,'operationcost') ] ;
 
 plantcapacity(t,b,g) $ thermal(g)
    = sum[ (n,f), thermalstationparameters(g,n,f,'capacity') ];
@@ -195,8 +197,9 @@ initialstorage(j) $ reservoir(j) = reservoirparameters(j,'initial') ;
 
 srmc(t,g) $ thermal(g) =
    sum[ f $ plantfuel(g,f), heatrate(g) * fuelcost(t,f) ]
- + sum[ f $ plantfuel(g,f), heatrate(g) * emissionrate(f) * 1e-6 * co2cost(t) ]
- + opercost(g) ;
+* + sum[ f $ plantfuel(g,f), heatrate(g) * emissionrate(f) * 1e-6 * co2cost(t) ]
+* + opercost(g)
+;
 
 reservoirfactor(j)
    = Sum[ hydro(g) $ reservoirplant(j,g), conversionfactor(g)] $ reservoir(j);
@@ -215,7 +218,7 @@ slopes(t,j,i)  = 0 ;
 intercepts(t,i) = 0 ;
 
 
-loop [s $ (ord(s) <= 10),
+loop [s $ (ord(s) <= 100),
 
    option clear = seq ;
    option clear = startstorage ;
@@ -255,11 +258,13 @@ loop [s $ (ord(s) <= 10),
       option clear = MinFlowOnArcConstraint ;
       option clear = EndStorageTotalGWhCalculation ;
       option clear = EndStorageSegmentGWhCalculation ;
+      option clear  = inflow ;
 *     End reset
 
       ti(t)  = yes;
       lastinterval = 1 $ [ ord(t) = card(t) ] ;
       startstorage(seq,t,reservoir(j)) = o_endstorage(seq,j);
+      inflow(seq,t,j) = sampledinflow(seq,t,j) ;
 
 *     Set upper bound, lower bound or fixed value for decision variables
       GENERATION.fx(seq,b,g) $ fixed(g)   = fixedoutput(t,b,g);
@@ -323,7 +328,7 @@ $offtext
 *$ontext
 
 *  Backward solve --------------------------------------------------------------
-   seq(s1) = yes $ [ord(s1) <= ord(s)] ;
+   seq(s1) = yes $ [ord(s1) >= card(s)-19] ;
 
    loop ( (t1,t) $ {revt(t1,t) and (ord(t) > 0)},
 
@@ -354,11 +359,13 @@ $offtext
       option clear = MinFlowOnArcConstraint ;
       option clear = EndStorageTotalGWhCalculation ;
       option clear = EndStorageSegmentGWhCalculation ;
+      option clear = inflow ;
 *     End reset
 
       ti(t)  = yes;
       lastinterval = 1 $ [ ord(t) = card(t) ] ;
       startstorage(seq,t,reservoir(j)) = startstorage(s,t,j);
+      inflow(seq,t,j) = sampledinflow(seq,t,j) ;
 
 *     Set upper bound, lower bound or fixed value for decision variables
       GENERATION.fx(seq,b,g) $ fixed(g)   = fixedoutput(t,b,g);
@@ -426,7 +433,7 @@ $offtext
 
 ] ;
 
-execute_unload 'savedoutput3.gdx'
+execute_unload 'savedoutput.gdx'
 
 ;
 

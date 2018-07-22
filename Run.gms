@@ -27,7 +27,7 @@ $call gams Model.gms s=Model
 
 
 * Solve the model for the current input file
-put_utility temp 'exec' / 'gams Solve.gms r=Model lo=3 ide=1 Errmsg = 1' ;
+put_utility temp 'exec' / 'gams Solve.gms r=Model lo=3 Errmsg = 1' ;
 
 
 *$ontext
